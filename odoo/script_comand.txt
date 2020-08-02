@@ -1,0 +1,22 @@
+links:
+    https://linuxize.com/post/how-to-install-odoo-13-on-ubuntu-18-04/
+    https://www.cybrosys.com/blog/scaffolding-odoo-13
+    https://www.youtube.com/watch?v=9AvMGOn2ZIw
+    https://www.odoo.com/documentation/13.0/howtos/backend.html
+    https://www.cybrosys.com/blog/how-to-create-module-in-odoo12
+    https://www.cybrosys.com/blog/install-odoo-13-on-ubuntu-18-04
+    https://www.odoo.com/documentation/13.0/howtos/backend.html
+
+
+
+commans odoo:
+    sudo nano /etc/odoo.conf
+    sudo nano /etc/systemd/system/odoo.service
+    sudo systemctl start odoo
+    sudo systemctl stop odoo
+    sudo systemctl status odoo
+    sudo su - odoo -s /bin/bash
+    ./odoo-bin -i base -d test
+    ./odoo-bin
+    ./odoo-bin scaffold school custom-addons
+    ./odoo-bin --addons-path="opt/odoo/odoo/addons/,../opt/odoo/odoo/custom-addons/"
