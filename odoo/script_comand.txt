@@ -6,6 +6,8 @@ links:
     https://www.cybrosys.com/blog/how-to-create-module-in-odoo12
     https://www.cybrosys.com/blog/install-odoo-13-on-ubuntu-18-04
     https://www.odoo.com/documentation/13.0/howtos/backend.html
+    https://www.cybrosys.com/blog/building-module-in-odoo-v12-defining-search-view-and-filters
+    https://www.cybrosys.com/blog/list-view-parameters-in-odoo-12
 
 
 
