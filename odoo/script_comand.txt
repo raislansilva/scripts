@@ -72,3 +72,6 @@ sudo chmod 755 /etc/systemd/system/odoo.service
 sudo chown root: /etc/systemd/system/odoo.service
 
 sudo tail -f /var/log/odoo/odoo.log // log
+
+
+http://www.odoo.yenthevg.com/creating-security-groups-odoo/
