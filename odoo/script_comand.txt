@@ -9,6 +9,9 @@ sudo adduser --system --home=/opt/odoo --group odoolinks:
     https://www.cybrosys.com/blog/building-module-in-odoo-v12-defining-search-view-and-filters
     https://www.cybrosys.com/blog/list-view-parameters-in-odoo-12
 
+    //odoo10
+    https://www.grobak.net/id/blog/odoo10-ubuntu/install-odoo-10-di-ubuntu-1804
+
 
 
 commans odoo:
