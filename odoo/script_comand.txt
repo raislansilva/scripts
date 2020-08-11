@@ -77,7 +77,7 @@ sudo chown root: /etc/systemd/system/odoo.service
 sudo tail -f /var/log/odoo/odoo.log // log
 
 
-shell odoo: python odoo-bin shell -c /etc/odoo.conf -d odoo
+shell odoo: python odoo-bin shell -c /etc/odoo.conf -d odoo, res = self.env['student.student'], 
 
 
 http://www.odoo.yenthevg.com/creating-security-groups-odoo/
