@@ -81,3 +81,5 @@ shell odoo: python odoo-bin shell -c /etc/odoo.conf -d odoo, res = self.env['stu
 
 
 http://www.odoo.yenthevg.com/creating-security-groups-odoo/
+
+--config=debian/odoo_dev.conf --dev=xml,qweb --update=saude_report
