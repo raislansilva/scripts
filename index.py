@@ -1,4 +1,26 @@
 method saude report
+
+<page string="EPS" attrs="{'invisible':['|', ('paciente_id','=',False), ('eps','=',False)]}">
+                            <field name="requisicoes_ids" widget="one2many_list">
+                                <tree>
+                                    <field name="id_documento"/>
+                                    <field name="paciente_id"/>
+                                    <field name="grupo_id"/>
+                                </tree>
+                                <form>
+                                    <group>
+                                        <field name="id_documento"/>
+                                        <field name="paciente_id"/>
+                                        <field name="grupo_id"/>
+                                    </group>
+                                    <group col="1">
+                                        <field name="check_eps"/>
+                                        <field name="descricao"/>
+                                    </group>
+                                </form>
+                            </field>
+                        </page>
+
 class Consulta(models.Model):
     _inherit = 'saude_atendimento.consulta'     
     
