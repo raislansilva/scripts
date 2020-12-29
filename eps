@@ -1,0 +1,363 @@
+# -*- coding: utf-8 -*-
+from datetime import date, datetime
+from jinja2 import Template
+from itertools import groupby
+import json
+import dateutil
+from psycopg2._psycopg import IntegrityError
+from dateutil.relativedelta import relativedelta
+
+from odoo import models, fields, api
+
+
+class Absenteismo(models.Model):
+    _name = 'saude_report.absenteismo'
+    _order = 'year desc, frequencia desc'
+    _sql_constraints = [
+        ('cid_id_year_month_unique', 'UNIQUE(cid_id,year,month)', 'CID, year e month devem ser únicos.'),
+    ]
+
+    name = fields.Char('CID', related='cid_id.codigo', store=True)
+    cid_id = fields.Many2one('saude.cid.categoria')
+    month = fields.Char('Mês', size=2)
+    year = fields.Char('Ano', size=4)
+    frequencia = fields.Integer('Frequência')
+    afastamento = fields.Integer('Dias de Afastamento', help='Quantidade de dias de afastamento')
+    faixa = fields.Selection([
+        ('1', 'Menos de 35 anos'), ('2', '36 a 45 anos'), ('3', '46 a 55 anos'),
+        ('4', '56 a 65 anos'), ('5', 'Mais de 65 anos')
+    ])
+    atuacao = fields.Selection([('1', '1º Grau'), ('2', '2º Grau')], 'Atuação', size=1)
+    atividade = fields.Selection([('direto', 'Judiciária'), ('indireto', 'Administrativa')], size=10)
+    sexo = fields.Selection([('M', 'Masculino'), ('F', 'Feminino')], size=1)
+
+    @api.model_cr
+    def init(self):
+        self.env.cr.execute("""
+        SELECT 
+        CASE 
+            WHEN extract(year from age(partner.birthday)) <= 35 THEN '1'
+            WHEN extract(year from age(partner.birthday)) BETWEEN 36 and 45 THEN '2'
+            WHEN extract(year from age(partner.birthday)) BETWEEN 46 and 55 THEN '3'
+            WHEN extract(year from age(partner.birthday)) BETWEEN 56 and 65 THEN '4'
+            WHEN extract(year from age(partner.birthday)) >= 66 THEN '5' END AS faixa,
+        subcategoria.categoria_id AS cid_id,
+        CASE 
+            WHEN partner.title = 3 THEN 'M'
+            WHEN partner.title = 1 OR partner.title = 2 THEN 'F' END AS sexo1,
+        SUM(atestado.dias) AS afastamento,
+        COUNT(atestado.id) AS frequencia,
+        date_part('month', consulta.create_date)::BIGINT AS month,
+        date_part('year', consulta.create_date)::BIGINT AS year
+        FROM saude_atendimento_atestado AS atestado 
+            JOIN saude_atendimento_atestado_saude_cid_subcategoria_rel ON atestado.id = saude_atendimento_atestado_id
+            JOIN saude_cid_subcategoria AS subcategoria ON subcategoria.id = saude_cid_subcategoria_id
+            JOIN saude_atendimento_consulta AS consulta ON consulta.id = atestado.consulta_id 
+            JOIN saude_paciente AS paciente ON paciente.id = consulta.paciente_id
+            JOIN res_partner AS partner ON partner.id = paciente.partner_id
+        GROUP BY 
+            subcategoria.categoria_id, sexo1, faixa, month, year
+        ORDER BY faixa, subcategoria.categoria_id;
+         """)
+        results = self.env.cr.dictfetchall()
+        for line in results:
+
+            record = self.search([
+                ('cid_id', '=', line['cid_id']),
+                ('year', '=', line['year']),
+                ('month', '=', line['month'])])
+            if record:
+                record.write(line)
+                # self.env.cr.commit()
+            else:
+                self.create(line)
+
+
+class Paciente(models.Model):
+    _name = 'saude_report.paciente'
+
+    _sql_constraints = [
+        ('cpf_unique', 'unique(cpf)', 'CPF é único')
+    ]
+
+    name = fields.Char('Nome', required=True)
+    cpf = fields.Char('CPF', required=True)
+    categoria = fields.Selection([
+        ('SERVIDOR_CARREIRA', u'Carreira/Efetivo'), ('CARGO_COMISSIONADO', u'Comissionado'),
+        ('MAGISTRADO', u'Magistrado'), ('CEDIDO', u'Cedido'), ('AUXILIAR_DA_JUSTICA', u'Auxiliar da Justiça')
+    ], 'Categoria')
+    cargo = fields.Char()
+    email = fields.Char('Email')
+    nascimento = fields.Date(required=True)
+    posse = fields.Date()
+    month_nasc = fields.Selection([(1, u'Janeiro'), (2, u'Fevereiro'), (3, u'Março'), (4, u'Abril'), (5, u'Maio'),
+                                   (6, u'Junho'), (7, u'Julho'), (8, u'Agosto'), (9, u'Setembro'), (10, u'Outubro'),
+                                  (11, u'Novembro'), (12, u'Dezembro')], 'Mês Nascimento', compute='_compute_month')
+    ativo = fields.Boolean(dafault=True)
+    documento_ids = fields.One2many('saude_report.documento', 'paciente_id', 'Requisições')
+
+    @api.multi
+    @api.depends('nascimento')
+    def _compute_month(self):
+        for record in self:
+            if record.nascimento:
+                dob = fields.Datetime.from_string(record.nascimento)
+                record.month_nasc = dob.month
+
+    @api.model
+    def scheduled_importar_vinculo(self):
+        _Transparencia = self.env['sei.transparencia_service']
+        result = _Transparencia.call_method('servidor', {})
+        # [u'APOSENTADO', u'MEDIADOR_JUDICIAL', u'ESTAGIARIO', u'PRESTADOR', u'CARGO_COMISSIONADO', u'MAGISTRADO',
+        #  u'PENSIONISTA DE SERVIDOR', u'PENSIONISTA', u'CEDIDO', u'AUXILIAR_DA_JUSTICA', u'MAGISTRADO INATIVO',
+        #  u'SERVIDOR INATIVO', u'SERVIDOR_CARREIRA', u'TERCEIRIZADO', u'PENSIONISTA DE MAGISTRADO', u'MILITAR']
+        for vinculo in result:
+            try:
+                paciente = self.search([('cpf', '=', vinculo['cpf'])])
+                vals = {
+                    'name': vinculo['nome'],
+                    'cpf': vinculo['cpf'],
+                    'nascimento': vinculo['nascimentoData'],
+                    'posse': vinculo['data_posse_efetivo'],
+                    'email': vinculo['email'],
+                    'categoria': vinculo['categoria'],
+                    'cargo': vinculo['cargo_comissionado_descricao'] or vinculo['cargo_efetivo_descricao'] or vinculo['categoria'].replace('_', ' ').title()
+                }
+                if paciente:
+                    paciente.sudo().write(vals)
+                elif vinculo['categoria'] in ['SERVIDOR_CARREIRA', 'CARGO_COMISSIONADO', 'MAGISTRADO', 'CEDIDO', 'AUXILIAR_DA_JUSTICA']:
+                    self.sudo().create(vals)
+                    self._cr.commit()
+            except Exception:
+                self._cr.rollback()
+
+
+# class Consulta(models.Model):
+#     _name = 'saude_report.consulta'
+#     _sql_constraints = [
+#         ('unique_exercicio_paciente', 'unique(exercicio, paciente_id)', 'Paciente já realizou EPS'),
+#     ]
+
+#     name = fields.Char(u'Descrição')
+#     data = fields.Date(default=fields.Date.context_today, required=True, translate=False)
+#     exercicio = fields.Char(u'Exercício', size=4, default=lambda self: date.today().strftime('%Y'), required=True)
+#     paciente_id = fields.Many2one('saude_report.paciente', 'Paciente')
+#     diagnostico = fields.Char(u'Diagnóstico')
+
+
+class Grupo(models.Model):
+    _name = 'saude_report.grupo'
+    _sql_constraints = [
+        ('unique_exercicio_month', 'unique(exercicio, month)', 'Existe um documento associado.')
+    ]
+
+    name = fields.Char(u'Descrição', compute='_compute_grupo_fields')
+    exercicio = fields.Char(u'Exercício', size=4, default=lambda self: date.today().strftime('%Y'), required=True)
+    mes = fields.Selection([(1, u'Janeiro'), (2, u'Fevereiro'), (3, u'Março'), (4, u'Abril'), (5, u'Maio'),
+                            (6, u'Junho'), (7, u'Julho'), (8, u'Agosto'), (9, u'Setembro'), (10, u'Outubro'),
+                            (11, u'Novembro'), (12, u'Dezembro')], 'Més', required=True)
+    ref = fields.Char('Referência')
+    documento_ids = fields.One2many('saude_report.documento', 'grupo_id', 'Requisições')
+    procedimento = fields.Char('N. do Processo', help=u'Número do processo no SEI')
+    id_proc = fields.Char('ID do Processo')
+    link_procedimento = fields.Char(compute='_compute_grupo_fields')
+    external_link_procedimento = fields.Char()
+
+    @api.multi
+    def _compute_grupo_fields(self):
+        _Sei = self.env['sei.service']
+        for record in self:
+            record.name = u'{}/{} {}'.format(record.exercicio, record.mes, record.ref or '')
+            record.link_procedimento = _Sei.link_procedimento(record.id_proc)
+            
+
+    def gerar_requisicao(self, procedimento,unidade, group_id):
+        _TS = self.env['sei.transparencia_service']
+        _SWS = self.env['sei.service']
+        
+        t = Template(
+            u'''<html>
+            <p> Convocação para Exames Periódico EPS</p>
+            <p style="text-indent: 10%">Com determinação pela <a href="http://transparencia.tjpi.jus.br/uploads/legislacao_lei/file/2054/Diario.pdf" target="_blank">Portaria (Presidência) Nº 1502/2019 - PJPI/TJPI/SECPRE</a>. Segue abaixo a lista de {{ categoria }} convocados para a realização dos exames Periodicos EPS.</p>
+            <br>
+            <ul>
+                {% for paciente in grupos_paciente %}
+                    <li>{{paciente['name']}}</li>
+                {% endfor %}
+            </ul>
+            </html>'''
+        )
+        # _SWS.incluir_documento('20.0.000000204-7', '110001744', t.render(magistrado1grau=magistrado1grau.encode('utf8')), '295')
+        query = self.env.cr.execute(""" select *from saude_report_paciente""")
+        result = self.env.cr.dictfetchall()
+        grupos = []
+        for r in result:
+            try:
+                if r['nascimento']:
+                    nsc = dateutil.parser.parse(r['nascimento']).date()
+                    month = datetime.today().month == 12 and 1 or datetime.today().month+1
+                    if nsc.month == month:
+                        #consulta os magistrados e servidores habilitados para o eps do mês subsequente
+                        num_months = (datetime.now().date().year - nsc.year) * 12 + (datetime.now().date().month - nsc.month)+1
+                        idade_month = num_months/12
+                        
+                        consultas_eps = self.env['saude_atendimento.consulta'].search([('eps','=',True)])
+                        consulta_eps = consultas_eps.filtered(lambda c: c.paciente_id.cpf == r['cpf'])
+                        month_eps = 0
+                        if consulta_eps:
+                            ultima_consulta_eps = consulta_eps.sorted(key="create_date",reverse=True)[0]
+                            dt_ultima_consulta_eps = nsc = dateutil.parser.parse(ultima_consulta_eps.create_date).date()
+                            month_eps = (datetime.now().date().year - dt_ultima_consulta_eps.year) * 12 + (datetime.now().date().month - dt_ultima_consulta_eps.month)+1
+                                  
+                        if idade_month <= 45 and month_eps >= 24 or idade_month > 45 or not consulta_eps:
+                            pessoa = _TS.vinculo_by_cpf(r['cpf'])
+                                if pessoa:
+                                    if pessoa['grauJudicial'] ==  1:
+                                        if pessoa['categoria'] == 'MAGISTRADO':
+                                            r.update({"group": "magistrados1grau"})
+                                            grupos.append(r)
+                                        elif pessoa['categoria'] == 'SERVIDOR_CARREIRA' or pessoa['categoria'] == 'CARGO_COMISSIONADO' or pessoa['categoria'] == 'CEDIDO'  or pessoa['categoria'] == 'AUXILIAR_DA_JUSTICA':
+                                            if pessoa['cidade_lotacao'] == "Teresina":
+                                                r.update({"group": "servidores1graucapital"})
+                                                grupos.append(r)
+                                            else:
+                                                if pessoa['sexo'] == 'M':
+                                                    r.update({"group": "servidores1grauinterior"})
+                                                    grupos.append(r)
+                                                elif pessoa['sexo'] == 'F':
+                                                    r.update({"group": "servidoras1grauinterior"})
+                                                    grupos.append(r)    
+                                    elif pessoa['grauJudicial'] ==  2:
+                                        if pessoa['categoria'] == 'MAGISTRADO':
+                                            r.update({"group": "magistrados2grau"})
+                                            grupos.append(r)
+                                        elif pessoa['categoria'] == 'SERVIDOR_CARREIRA' or pessoa['categoria'] == 'CARGO_COMISSIONADO' or pessoa['categoria'] == 'CEDIDO'  or pessoa['categoria'] == 'AUXILIAR_DA_JUSTICA':
+                                            r.update({"group": "servidores2grau"})
+                                            grupos.append(r)
+                                            
+            except AttributeError as ex:
+                print "----------- ERROR START ------------"
+                print ex, r, nsc
+                print "----------- ERROR END------------"
+        
+        
+        orderna = lambda item:item['group']
+        grupos.sort(key=orderna)
+        pacientes_agrupados = groupby(grupos,orderna)
+
+        for agrupamento, valores_agrupados in pacientes_agrupados:
+            grupo_paciente=list()
+            for value in valores_agrupados:
+                grupo_paciente.append(value)
+            
+            grupo_string = json.dumps(grupo_paciente)    
+            doc_sei = _SWS.incluir_documento(procedimento, unidade, 
+                                    t.render({'grupos_paciente':json.loads(grupo_string),
+                                        'categoria':self.retorna_grupo(grupo_paciente[0]['group']) }).encode('utf8'), '295')
+            
+            
+            for grupo in grupo_paciente:
+                paciente = self.env['saude_report.paciente'].search([('cpf','=',grupo['cpf'])])
+                documento = self.env['saude_report.documento']
+                documento.create({
+                    'id_documento': doc_sei.IdDocumento,
+                    'paciente_id': paciente.id,
+                    'grupo_id':group_id
+                })
+                
+
+
+    def retorna_grupo(self,grupo):
+        if grupo == 'magistrados1grau':
+            return 'Magistrados de 1.º'.decode("utf8")
+        elif grupo == 'servidores1graucapital':
+            return 'Servidores 1.ª Grau Capital'.decode("utf8")
+        elif grupo == 'servidores1grauinterior':
+            return 'Servidores 1.ª Grau Interior'.decode("utf8")
+        elif grupo == 'servidoras1grauinterior':
+            return 'Servidoras 1.ª Grau Interior'.decode("utf8")
+        elif grupo == 'magistrados2grau':
+            return 'Magistrados de 2.º'.decode("utf8")      
+        elif grupo == 'servidores2grau':
+            return 'Servidores 2.º Grau'.decode("utf8")
+    
+    
+    def criar_procedimento_requisicao(self):
+        unidade = '110001744'
+        month = datetime.today().month == 12 and 1 or datetime.today().month+1
+        year = datetime.today().month == 12 and datetime.today().year+1 or datetime.today().year
+        vals = {
+            'id_proc': '',
+            'procedimento': '',
+            'external_link_procedimento':'',
+            'mes':month,
+            'exercicio':year
+        }
+        grupo = self.create(vals)
+        self.gerar_requisicao(grupo.procedimento,unidade, grupo.id)
+        
+
+    @api.model
+    def create(self, vals):
+        unidade = '110001744'
+        tipo_procedimento = '100000190'
+        especificacao = u'Requisição para realização de Exame Periódico de Saúde - EPS'
+        assuntos = [{u'CodigoEstruturado': u'02.21.13', u'Descricao': u'Guia para consulta / exame laboratorial'}]
+        _Sei = self.env['sei.service']  # :type _Sei : int
+        base_procedimento = _Sei.criar_procedimento(tipo_procedimento, especificacao, assuntos)
+
+        procedimento = _Sei.gerar_procedimento(unidade, base_procedimento)
+        if procedimento and procedimento['IdProcedimento']:
+            vals['id_proc'] = procedimento['IdProcedimento']
+            vals['procedimento'] = procedimento['ProcedimentoFormatado']
+            vals['external_link_procedimento'] = procedimento['LinkAcesso']
+            return super(Grupo, self).create(vals)
+        else:
+            raise models.ValidationError('Error ao tentar criar o procedimento no SEI.')
+
+
+class Documento(models.Model):
+    _name = 'saude_report.documento'
+    _sql_constraints = [
+        ('unique_paciente_id_grupo_id', 'unique(paciente_id,grupo_id)', 'Existe um documento associado.')
+    ]
+    _rec_name="paciente_id"
+    
+
+    name = fields.Char('Nome')
+    documento = fields.Char('Número do documento')
+    id_documento = fields.Char('ID Documento')
+    paciente_id = fields.Many2one('saude_report.paciente', 'Paciente')
+    grupo_id = fields.Many2one('saude_report.grupo', 'Grupo')
+    status_eps = fields.Selection([
+        ('accomplished', 'Realizado'),
+        ('unrealized', 'Não Realizado'),
+        ('justfied', 'Justificado')],'Status do EPS')
+    justificativa = fields.Html("Justificativa da não realiazação do EPS")
+    
+        
+
+class Consulta(models.Model):
+    _inherit = 'saude_atendimento.consulta'     
+    
+    paciente_report = fields.Many2one('saude_report.paciente', string="Paciente Report")
+    requisicoes_ids = fields.One2many(related="paciente_report.documento_ids",string="Requisições EPS")
+
+
+    @api.model
+    def create(self,vals):
+        paciente = self.env['saude.paciente'].search([('id','=',vals.get('paciente_id'))])
+        paciente_report = self.env['saude_report.paciente'].search([('cpf','=',paciente.cpf)])
+        consulta = super(Consulta, self).create(vals) 
+        consulta.write({'paciente_report':paciente_report.id})
+        return consulta
+    
+    @api.multi
+    def write(self,vals):
+        paciente_report = self.env['saude_report.paciente'].search([('cpf','=',self.paciente_id.cpf)])
+        vals['paciente_report'] = paciente_report.id
+        return super(Consulta, self).write(vals)        
+     
+
+
+
