@@ -169,13 +169,25 @@ class Grupo(models.Model):
         for record in self:
             record.name = u'{}/{} {}'.format(record.exercicio, record.mes, record.ref or '')
             record.link_procedimento = _Sei.link_procedimento(record.id_proc)
-            
 
-    def gerar_requisicao(self, procedimento,unidade, group_id):
-        _TS = self.env['sei.transparencia_service']
-        _SWS = self.env['sei.service']
-        
-        t = Template(
+    @api.multi
+    def action_send_email(self):
+        grupo = self.search([('exercicio','=',str(datetime.now().date().year)),('mes','=',datetime.now().date().month)])
+        for r in grupo.documento_ids:
+            if r.status_eps == u'unrealized':
+                #consultar se o documento dessa requisição já foi assinado
+                template_id = self.env.ref('saude_report.email_template_eps').id
+                template =  self.env['mail.template'].browse(template_id)
+                template.write({
+                    'email_to': r.paciente_id.email,
+                    'email_from':'raislan@live.com',
+                    'subject':'Requisição Para Realização do Exame Periódico de Saúde - EPS'
+                })
+                template.send_mail(self.id, force_send=True)
+
+
+    def template(self):
+        return Template(
             u'''<html>
             <p> Convocação para Exames Periódico EPS</p>
             <p style="text-indent: 10%">Com determinação pela <a href="http://transparencia.tjpi.jus.br/uploads/legislacao_lei/file/2054/Diario.pdf" target="_blank">Portaria (Presidência) Nº 1502/2019 - PJPI/TJPI/SECPRE</a>. Segue abaixo a lista de {{ categoria }} convocados para a realização dos exames Periodicos EPS.</p>
@@ -187,7 +199,10 @@ class Grupo(models.Model):
             </ul>
             </html>'''
         )
-        # _SWS.incluir_documento('20.0.000000204-7', '110001744', t.render(magistrado1grau=magistrado1grau.encode('utf8')), '295')
+
+
+    def grupos_habilitados_eps(self):
+        _TS = self.env['sei.transparencia_service']
         query = self.env.cr.execute(""" select *from saude_report_paciente""")
         result = self.env.cr.dictfetchall()
         grupos = []
@@ -198,51 +213,55 @@ class Grupo(models.Model):
                     month = datetime.today().month == 12 and 1 or datetime.today().month+1
                     if nsc.month == month:
                         #consulta os magistrados e servidores habilitados para o eps do mês subsequente
-                        num_months = (datetime.now().date().year - nsc.year) * 12 + (datetime.now().date().month - nsc.month)+1
-                        idade_month = num_months/12
+                        # num_months = (datetime.now().date().year - nsc.year) * 12 + (datetime.now().date().month - nsc.month)+1
+                        # idade_month = num_months/12
                         
-                        consultas_eps = self.env['saude_atendimento.consulta'].search([('eps','=',True)])
-                        consulta_eps = consultas_eps.filtered(lambda c: c.paciente_id.cpf == r['cpf'])
-                        month_eps = 0
-                        if consulta_eps:
-                            ultima_consulta_eps = consulta_eps.sorted(key="create_date",reverse=True)[0]
-                            dt_ultima_consulta_eps = nsc = dateutil.parser.parse(ultima_consulta_eps.create_date).date()
-                            month_eps = (datetime.now().date().year - dt_ultima_consulta_eps.year) * 12 + (datetime.now().date().month - dt_ultima_consulta_eps.month)+1
+                        # consultas_eps = self.env['saude_atendimento.consulta'].search([('eps','=',True)])
+                        # consulta_eps = consultas_eps.filtered(lambda c: c.paciente_id.cpf == r['cpf'])
+                        # month_eps = 0
+                        # if consulta_eps:
+                        #     ultima_consulta_eps = consulta_eps.sorted(key="create_date",reverse=True)[0]
+                        #     dt_ultima_consulta_eps = dateutil.parser.parse(ultima_consulta_eps.create_date).date()
+                        #     month_eps = (datetime.now().date().year - dt_ultima_consulta_eps.year) * 12 + (datetime.now().date().month - dt_ultima_consulta_eps.month)+1
                                   
-                        if idade_month <= 45 and month_eps >= 24 or idade_month > 45 or not consulta_eps:
-                            pessoa = _TS.vinculo_by_cpf(r['cpf'])
-                                if pessoa:
-                                    if pessoa['grauJudicial'] ==  1:
-                                        if pessoa['categoria'] == 'MAGISTRADO':
-                                            r.update({"group": "magistrados1grau"})
+                        # if idade_month <= 45 and month_eps >= 24 or idade_month > 45 or not consulta_eps:
+                        pessoa = _TS.vinculo_by_cpf(r['cpf'])
+                        if pessoa:
+                            if pessoa['grauJudicial'] ==  1:
+                                if pessoa['categoria'] == 'MAGISTRADO':
+                                    r.update({"group": "magistrados1grau"})
+                                    grupos.append(r)
+                                elif pessoa['categoria'] == 'SERVIDOR_CARREIRA' or pessoa['categoria'] == 'CARGO_COMISSIONADO' or pessoa['categoria'] == 'CEDIDO'  or pessoa['categoria'] == 'AUXILIAR_DA_JUSTICA':
+                                    if pessoa['cidade_lotacao'] == "Teresina":
+                                        r.update({"group": "servidores1graucapital"})
+                                        grupos.append(r)
+                                    else:
+                                        if pessoa['sexo'] == 'M':
+                                            r.update({"group": "servidores1grauinterior"})
                                             grupos.append(r)
-                                        elif pessoa['categoria'] == 'SERVIDOR_CARREIRA' or pessoa['categoria'] == 'CARGO_COMISSIONADO' or pessoa['categoria'] == 'CEDIDO'  or pessoa['categoria'] == 'AUXILIAR_DA_JUSTICA':
-                                            if pessoa['cidade_lotacao'] == "Teresina":
-                                                r.update({"group": "servidores1graucapital"})
-                                                grupos.append(r)
-                                            else:
-                                                if pessoa['sexo'] == 'M':
-                                                    r.update({"group": "servidores1grauinterior"})
-                                                    grupos.append(r)
-                                                elif pessoa['sexo'] == 'F':
-                                                    r.update({"group": "servidoras1grauinterior"})
-                                                    grupos.append(r)    
-                                    elif pessoa['grauJudicial'] ==  2:
-                                        if pessoa['categoria'] == 'MAGISTRADO':
-                                            r.update({"group": "magistrados2grau"})
-                                            grupos.append(r)
-                                        elif pessoa['categoria'] == 'SERVIDOR_CARREIRA' or pessoa['categoria'] == 'CARGO_COMISSIONADO' or pessoa['categoria'] == 'CEDIDO'  or pessoa['categoria'] == 'AUXILIAR_DA_JUSTICA':
-                                            r.update({"group": "servidores2grau"})
-                                            grupos.append(r)
+                                        elif pessoa['sexo'] == 'F':
+                                            r.update({"group": "servidoras1grauinterior"})
+                                            grupos.append(r)    
+                            elif pessoa['grauJudicial'] ==  2:
+                                if pessoa['categoria'] == 'MAGISTRADO':
+                                    r.update({"group": "magistrados2grau"})
+                                    grupos.append(r)
+                                elif pessoa['categoria'] == 'SERVIDOR_CARREIRA' or pessoa['categoria'] == 'CARGO_COMISSIONADO' or pessoa['categoria'] == 'CEDIDO'  or pessoa['categoria'] == 'AUXILIAR_DA_JUSTICA':
+                                    r.update({"group": "servidores2grau"})
+                                    grupos.append(r)
                                             
             except AttributeError as ex:
                 print "----------- ERROR START ------------"
                 print ex, r, nsc
                 print "----------- ERROR END------------"
-        
+
+        return grupos
+
+    def gerar_requisicao(self, procedimento,unidade, group_id):
+        _SWS = self.env['sei.service']
         
         orderna = lambda item:item['group']
-        grupos.sort(key=orderna)
+        self.grupos_habilitados_eps().sort(key=orderna)
         pacientes_agrupados = groupby(grupos,orderna)
 
         for agrupamento, valores_agrupados in pacientes_agrupados:
@@ -250,12 +269,13 @@ class Grupo(models.Model):
             for value in valores_agrupados:
                 grupo_paciente.append(value)
             
-            grupo_string = json.dumps(grupo_paciente)    
+            grupo_string = json.dumps(grupo_paciente)
+            #gerar documentos no sei agrupados por categorias    
             doc_sei = _SWS.incluir_documento(procedimento, unidade, 
-                                    t.render({'grupos_paciente':json.loads(grupo_string),
+                                    self.template().render({'grupos_paciente':json.loads(grupo_string),
                                         'categoria':self.retorna_grupo(grupo_paciente[0]['group']) }).encode('utf8'), '295')
             
-            
+            ## gerar requisições(documentos)-eps
             for grupo in grupo_paciente:
                 paciente = self.env['saude_report.paciente'].search([('cpf','=',grupo['cpf'])])
                 documento = self.env['saude_report.documento']
@@ -357,7 +377,3 @@ class Consulta(models.Model):
         paciente_report = self.env['saude_report.paciente'].search([('cpf','=',self.paciente_id.cpf)])
         vals['paciente_report'] = paciente_report.id
         return super(Consulta, self).write(vals)        
-     
-
-
-
