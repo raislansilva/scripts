@@ -1,0 +1,25 @@
+<record id="consulta_view_form_inherit" model="ir.ui.view">
+        <field name="name">Consulta</field>
+        <field name="model">saude_atendimento.consulta</field>
+        <field name="inherit_id" ref="saude_atendimento.consulta_view_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="EPS" attrs="{'invisible':['|', ('paciente_id','=',False), ('eps','=',False)]}">
+                    <field name="requisicoes_ids" widget="one2many_list">
+                        <tree>
+                            <field name="id_documento"/>
+                            <field name="paciente_id"/>
+                            <field name="grupo_id"/>
+                        </tree>
+                        <form>
+                            <group>
+                                <field name="id_documento"/>
+                                <field name="paciente_id"/>
+                                <field name="grupo_id"/>
+                            </group>
+                        </form>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
