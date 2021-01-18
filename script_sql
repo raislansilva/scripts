@@ -1,0 +1,35 @@
+/*RODAR NO BACKUP*/
+COPY frota_veiculo(bem_id, placa, renavam,ano,cor,combustivel,qtd_assento) 
+TO '/home/raislan/Documentos/server/veiculo.csv' DELIMITER ',' CSV HEADER;
+
+COPY frota_veiculo_percurso(veiculo_id, km_inicial, km_final,hora_inicial,
+     hora_final,destino_percurso,motorista_id,solicitante,numero_sei,qtd_pessoas,status_percurso,link_sei_percurso) 
+TO '/home/raislan/Documentos/server/percurso.csv' DELIMITER ',' CSV HEADER;
+
+COPY frota_veiculo_despesa(veiculo_id, valor_gasto, tipo_gasto,
+	  currency_id,complemento,motorista_id,numero_nota,empresa,link_sei_despesa) 
+TO '/home/raislan/Documentos/server/despesa.csv' DELIMITER ',' CSV HEADER;
+
+
+/*RODAR NO PRODUÇÃO*/
+COPY frota_veiculo(bem_id, placa, renavam,ano,cor,combustivel,qtd_assento)
+FROM '/home/raislan/Documentos/server/veiculo.csv'
+DELIMITER ','
+CSV HEADER;
+
+COPY frota_veiculo_percurso(veiculo_id, km_inicial, km_final,hora_inicial,
+     hora_final,destino_percurso,motorista_id,solicitante,numero_sei,qtd_pessoas,status_percurso,link_sei_percurso)
+FROM '/home/raislan/Documentos/server/percurso.csv'
+DELIMITER ','
+CSV HEADER;
+
+COPY frota_veiculo_despesa(veiculo_id, valor_gasto, tipo_gasto,
+	  currency_id,complemento,motorista_id,numero_nota,empresa,link_sei_despesa) 
+FROM '/home/raislan/Documentos/server/despesa.csv' DELIMITER ',' CSV HEADER;
+
+
+select *from frota_veiculo_despesa
+
+select id ,ROW_NUMBER() OVER(ORDER BY id asc),
+(select veiculo_id from frota_veiculo_despesa where veiculo_id = frota.id ) 
+from frota_veiculo as frota
