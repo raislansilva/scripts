@@ -1,5 +1,5 @@
 /*RODAR NO BACKUP*/
-COPY frota_veiculo(bem_id, placa, renavam,ano,cor,combustivel,qtd_assento) 
+COPY frota_veiculo(id,bem_id, placa, renavam,ano,cor,combustivel,qtd_assento) 
 TO '/home/raislan/Documentos/server/veiculo.csv' DELIMITER ',' CSV HEADER;
 
 COPY frota_veiculo_percurso(veiculo_id, km_inicial, km_final,hora_inicial,
@@ -11,8 +11,13 @@ COPY frota_veiculo_despesa(veiculo_id, valor_gasto, tipo_gasto,
 TO '/home/raislan/Documentos/server/despesa.csv' DELIMITER ',' CSV HEADER;
 
 
+
 /*RODAR NO PRODUÇÃO*/
-COPY frota_veiculo(bem_id, placa, renavam,ano,cor,combustivel,qtd_assento)
+
+ALTER SEQUENCE frota_veiculo_id_seq RESTART WITH 6
+
+
+COPY frota_veiculo(id,bem_id, placa, renavam,ano,cor,combustivel,qtd_assento)
 FROM '/home/raislan/Documentos/server/veiculo.csv'
 DELIMITER ','
 CSV HEADER;
@@ -28,8 +33,3 @@ COPY frota_veiculo_despesa(veiculo_id, valor_gasto, tipo_gasto,
 FROM '/home/raislan/Documentos/server/despesa.csv' DELIMITER ',' CSV HEADER;
 
 
-select *from frota_veiculo_despesa
-
-select id ,ROW_NUMBER() OVER(ORDER BY id asc),
-(select veiculo_id from frota_veiculo_despesa where veiculo_id = frota.id ) 
-from frota_veiculo as frota
