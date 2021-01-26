@@ -34,15 +34,13 @@ FROM '/home/raislan/Documentos/server/despesa.csv' DELIMITER ',' CSV HEADER;
 
 
 
-select
+SELECT sum(atestado.dias) as afastamento,
 CASE 
     WHEN partner.function = 'Servidor Carreira'
 	OR  partner.function = 'Cargo Comissionado'
-	OR  partner.function = 'Auxiliar Da Justica'
-THEN 'servidor' END AS servidor,
-CASE 
-    WHEN partner.function = 'Magistrado'
-THEN 'Magistrado' END AS Magistrado
+	OR  partner.function = 'Auxiliar Da Justica' THEN 'servidor' 
+	WHEN partner.function = 'Magistrado' THEN 'Magistrado'
+END AS categoria
 from saude_atendimento_atestado as atestado
 JOIN saude_atendimento_consulta AS consulta ON consulta.id = atestado.consulta_id
 JOIN saude_paciente AS paciente ON paciente.id = consulta.paciente_id
@@ -52,7 +50,6 @@ and partner.function = 'Servidor Carreira'
 or partner.function = 'Magistrado'
 or partner.function = 'Cargo Comissionado'
 or partner.function = 'Auxiliar Da Justica'
-GROUP BY 
-     servidor,Magistrado
+GROUP BY categoria
 
 
