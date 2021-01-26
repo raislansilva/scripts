@@ -33,3 +33,26 @@ COPY frota_veiculo_despesa(veiculo_id, valor_gasto, tipo_gasto,
 FROM '/home/raislan/Documentos/server/despesa.csv' DELIMITER ',' CSV HEADER;
 
 
+
+select
+CASE 
+    WHEN partner.function = 'Servidor Carreira'
+	OR  partner.function = 'Cargo Comissionado'
+	OR  partner.function = 'Auxiliar Da Justica'
+THEN 'servidor' END AS servidor,
+CASE 
+    WHEN partner.function = 'Magistrado'
+THEN 'Magistrado' END AS Magistrado
+from saude_atendimento_atestado as atestado
+JOIN saude_atendimento_consulta AS consulta ON consulta.id = atestado.consulta_id
+JOIN saude_paciente AS paciente ON paciente.id = consulta.paciente_id
+JOIN res_partner AS partner ON partner.id = paciente.partner_id
+where consulta.atestado = 'true' and EXTRACT(YEAR FROM consulta.create_date) = 2020 
+and partner.function = 'Servidor Carreira'
+or partner.function = 'Magistrado'
+or partner.function = 'Cargo Comissionado'
+or partner.function = 'Auxiliar Da Justica'
+GROUP BY 
+     servidor,Magistrado
+
+
