@@ -52,4 +52,36 @@ or partner.function = 'Cargo Comissionado'
 or partner.function = 'Auxiliar Da Justica'
 GROUP BY categoria
 
+SELECT 
+        CASE 
+            WHEN extract(year from age(partner.birthday)) <= 35 THEN '1'
+            WHEN extract(year from age(partner.birthday)) BETWEEN 36 and 45 THEN '2'
+            WHEN extract(year from age(partner.birthday)) BETWEEN 46 and 55 THEN '3'
+            WHEN extract(year from age(partner.birthday)) BETWEEN 56 and 65 THEN '4'
+            WHEN extract(year from age(partner.birthday)) >= 66 THEN '5' END AS faixa,
+		categoria.codigo,
+        CASE 
+            WHEN partner.title = 3 THEN 'M'
+            WHEN partner.title = 1 OR partner.title = 2 THEN 'F' END AS sexo1,
+	    CASE 
+		WHEN partner.function = 'Servidor Carreira'
+		OR  partner.function = 'Cargo Comissionado'
+		OR  partner.function = 'Auxiliar Da Justica' THEN '2' 
+		WHEN partner.function = 'Magistrado' THEN '1'
+		END AS categoria,		
+        SUM(atestado.dias) AS afastamento,
+        COUNT(atestado.id) AS frequencia,
+		date_part('year', consulta.create_date)::BIGINT AS year
+        FROM saude_atendimento_atestado AS atestado 
+            JOIN saude_atendimento_atestado_saude_cid_subcategoria_rel ON atestado.id = saude_atendimento_atestado_id
+            JOIN saude_cid_subcategoria AS subcategoria ON subcategoria.id = saude_cid_subcategoria_id
+			JOIN saude_cid_categoria AS categoria ON categoria.id = subcategoria.categoria_id
+            JOIN saude_atendimento_consulta AS consulta ON consulta.id = atestado.consulta_id 
+            JOIN saude_paciente AS paciente ON paciente.id = consulta.paciente_id
+            JOIN res_partner AS partner ON partner.id = paciente.partner_id
+        where EXTRACT(YEAR FROM consulta.create_date) = 2020 			
+        GROUP BY 
+            sexo1, faixa,categoria,categoria.codigo,year
+        ORDER BY faixa
+	 
 
