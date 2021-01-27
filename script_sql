@@ -52,6 +52,8 @@ or partner.function = 'Cargo Comissionado'
 or partner.function = 'Auxiliar Da Justica'
 GROUP BY categoria
 
+
+
 SELECT 
         CASE 
             WHEN extract(year from age(partner.birthday)) <= 35 THEN '1'
@@ -75,7 +77,7 @@ SELECT
         FROM saude_atendimento_atestado AS atestado 
             JOIN saude_atendimento_atestado_saude_cid_subcategoria_rel ON atestado.id = saude_atendimento_atestado_id
             JOIN saude_cid_subcategoria AS subcategoria ON subcategoria.id = saude_cid_subcategoria_id
-			JOIN saude_cid_categoria AS categoria ON categoria.id = subcategoria.categoria_id
+	    JOIN saude_cid_categoria AS categoria ON categoria.id = subcategoria.categoria_id
             JOIN saude_atendimento_consulta AS consulta ON consulta.id = atestado.consulta_id 
             JOIN saude_paciente AS paciente ON paciente.id = consulta.paciente_id
             JOIN res_partner AS partner ON partner.id = paciente.partner_id
@@ -83,5 +85,6 @@ SELECT
         GROUP BY 
             sexo1, faixa,categoria,categoria.codigo,year
         ORDER BY faixa
+
 	 
 
