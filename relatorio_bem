@@ -100,3 +100,23 @@
     </template>
 
 </odoo>
+
+manifeste
+'report/bem_report_mass_templates.xml',
+
+act_relarorio
+ <report id="bem_mass_act_report" string="patrimonio_bem_massivo"
+            model="patrimonio.bem" name="report"
+    />
+    <record id="bem_mass_act_report" model="ir.actions.report.xml">
+        <field name="name">Relatório Massivo</field>
+        <field name="model">patrimonio.bem</field>
+        <field name="report_name">patrimonio.bem_mass_pdf_report</field>
+        <field name="report_file">patrimonio.bem_mass_pdf_report</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="multi">True</field>
+        <field name="paperformat_id" ref="patrimonio.paisagem"/>
+        <field name="print_report_name">'Relatório de Bens Massivo'</field>
+        <field name="usage">Relatório de Bens Massivo</field>
+        <field name="help">Relatório de Bens Massivo</field>
+    </record>
