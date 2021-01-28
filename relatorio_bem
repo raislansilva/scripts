@@ -1,1 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="bem_mass_pdf_report">
+        <t t-call="report.html_container">
+            <t t-set="unidade" t-value="'Tribunal de Justiça do Estado do Piauí'"/>
+            <t t-set="setor" t-value="'Departamento de Material e Patrimônio-DEPMATPAT'"/>
+            <t t-call="tjpi.external_layout_almoxarifado">
+                <div class="page">
+                    <t t-if="len(docs) > 1">
+                        <center>
+                            <h3>
+                                <b>Relatório de Bens Massivo</b>
+                            </h3>
+                        </center>
+                        <table class="table table-condensed">
+                            <thead>
+                                <tr>
+                                    <th>
+                                        <strong>Localização</strong>
+                                    </th>
+                                    <th>
+                                        <strong>Número do Tombamento dos Bens</strong>
+                                    </th>
+                                    <th>
+                                        <strong>Condições de Uso</strong>
+                                    </th>
+                                    <th>
+                                        <strong>Descrição</strong>
+                                    </th>
+                                    <th>
+                                        <strong>Forma de Aquisição</strong>
+                                    </th>
+                                    <th>
+                                        <strong>Data e Ano de Aquisição</strong>
+                                    </th>
+                                    <th>
+                                        <strong>Valor de Aquisição</strong>
+                                    </th>
+                                    <th>
+                                        <strong>Valor Atual</strong>
+                                    </th>
+                                    <th>
+                                        <strong>Valor de Depreciação dos Bens</strong>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr t-foreach="docs" t-as="bem">
+                                    <td width="120px">
+                                        <span t-field="bem.local_id"/>
+                                    </td>
+                                    <td>
+                                        <span t-field="bem.tombo"/>
+                                    </td>
+                                    <td>
+                                        <t t-if="bem.estado">
+                                           <span t-field="bem.estado"/>
+                                        </t>
+                                        <t t-else="">
+                                            <span t-esc="'Falso'"/>
+                                        </t>
+                                        
+                                    </td>
+                                    <td>
+                                        <span t-field="bem.categoria_id.name"/>
+                                    </td>
+                                    <td>
+                                        <span t-field="bem.especie"/>
+                                    </td>
+                                    <td>
+                                        <t t-if="bem.doc_aquisicao_id">
+                                            <span t-field="bem.doc_aquisicao_id.data_nota"/>
+                                        </t>
+                                        <t t-else="">
+                                            <span t-esc="'Falso'"/>
+                                        </t>
+                                    </td>
+                                    <td>
+                                        <span t-field="bem.vbn"/>
+                                    </td>
+                                    <td>
+                                        <t t-if="bem.vbdep &gt; 0">
+                                            <span  t-field="bem.vbdep"/>
+                                        </t>
+                                        <t t-if="bem.vbdep  &lt;= 0">
+                                            <span t-field="bem.vbn"/>
+                                        </t>
+                                    </td>
+                                    <td>
+                                        <t t-set="valor_depreciacao" t-value="bem.vbn - bem.vbdep"/>
+                                        <span t-esc="'R$ {}'.format(valor_depreciacao)" />
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </t>
+                </div>
+            </t>
+        </t>
+    </template>
 
+</odoo>
