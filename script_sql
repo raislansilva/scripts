@@ -122,8 +122,8 @@ CASE
 	ELSE 'FALSO'
 END as DataAqusição,
 CASE 
-    WHEN vbn > 0 THEN CONCAT('R$ ', vbn)
-	WHEN vbn = 0 THEN CONCAT('R$ ', vbn)
+    WHEN vbn > 0 THEN CONCAT('R$ ', to_char(vbn::float,'FM999999990.00'))
+	WHEN vbn = 0 THEN CONCAT('R$ ', to_char(vbn::float,'FM999999990.00'))
 END AS Valor,
 CASE
     WHEN categoria.cat_dep_id IS NOT null THEN
@@ -135,9 +135,9 @@ CASE
 			        ELSE
 					    CONCAT('R$ ',to_char(vbn - (depreciacao.valor_residual * vbn)::float,'FM999999990.00'))
 			     END 
-		    ELSE 'R$ 0.0'		 
+		    ELSE 'R$ 0.00'		 
 		END
-    ELSE 'R$ 0.0'	
+    ELSE 'R$ 0.00'	
 END	AS ValorAtual,
 CASE
     WHEN categoria.cat_dep_id IS NOT null THEN
@@ -149,9 +149,9 @@ CASE
 			        ELSE
 					    CONCAT('R$ ',to_char((vbn)-(vbn - (depreciacao.valor_residual * vbn))::float,'FM999999990.00'))
 			     END 
-		    ELSE 'R$ 0.0'		 
+		    ELSE 'R$ 0.00'		 
 		END
-    ELSE 'R$ 0.0'		
+    ELSE 'R$ 0.00'		
 END	AS ValorDeprecicao
 FROM patrimonio_bem as bem
 JOIN patrimonio_local AS locais ON locais.id = bem.local_id
