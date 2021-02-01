@@ -96,7 +96,6 @@ SELECT
 
 
 
-
 SELECT
 locais.name as Localização,
 tombo as Tombamento,
@@ -118,7 +117,10 @@ CASE
 	WHEN especie = 'incorporacao_ti' THEN 'Incorporação'
 	ELSE 'FALSO'
 END AS Aquisição,
-doc_aquisicao.data_nota as DataAqusição,
+CASE
+    WHEN doc_aquisicao.data_nota IS NOT null THEN to_char(doc_aquisicao.data_nota,'YYYY-MM-DD')
+	ELSE 'FALSO'
+END as DataAqusição,
 CASE 
     WHEN vbn > 0 THEN CONCAT('R$ ', vbn)
 	WHEN vbn = 0 THEN CONCAT('R$ ', vbn)
@@ -134,7 +136,8 @@ CASE
 					    CONCAT('R$ ',to_char(vbn - (depreciacao.valor_residual * vbn)::float,'FM999999990.00'))
 			     END 
 		    ELSE 'R$ 0.0'		 
-		END	
+		END
+    ELSE 'R$ 0.0'	
 END	AS ValorAtual,
 CASE
     WHEN categoria.cat_dep_id IS NOT null THEN
@@ -147,13 +150,14 @@ CASE
 					    CONCAT('R$ ',to_char((vbn)-(vbn - (depreciacao.valor_residual * vbn))::float,'FM999999990.00'))
 			     END 
 		    ELSE 'R$ 0.0'		 
-		END	
+		END
+    ELSE 'R$ 0.0'		
 END	AS ValorDeprecicao
 FROM patrimonio_bem as bem
 JOIN patrimonio_local AS locais ON locais.id = bem.local_id
 JOIN patrimonio_categoria AS categoria ON categoria.id = bem.categoria_id
-JOIN patrimonio_depreciacao AS depreciacao ON depreciacao.id = categoria.cat_dep_id
-JOIN patrimonio_documento_aquisicao AS doc_aquisicao ON doc_aquisicao.id = bem.doc_aquisicao_id
+LEFT JOIN patrimonio_depreciacao AS depreciacao ON depreciacao.id = categoria.cat_dep_id
+LEFT JOIN  patrimonio_documento_aquisicao AS doc_aquisicao ON doc_aquisicao.id = bem.doc_aquisicao_id
 
 	 
 
